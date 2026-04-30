@@ -1,23 +1,25 @@
-# 🐱 Terminal Kitty — 终端猫咪守护者
+# 🐱 Terminal Kitty
 
-当你在终端连续工作太久时，猫咪会来提醒你休息。
+[中文](README.zh-CN.md)
 
-灵感来自浏览器插件 [Cat Gatekeeper](https://github.com/tjxj/weibo-cat)。
+A cute terminal companion that reminds you to take breaks when you've been working too long.
 
-## 特性
+Inspired by the browser extension [Cat Gatekeeper](https://github.com/tjxj/weibo-cat).
 
-- **智能感知**：自动检测终端活动，不需要手动计时
-- **三档递进**：温柔提醒 → ASCII 猫咪 → 终端占领，逐步升级
-- **零依赖**：纯 Python 标准库，开箱即用
-- **跨平台**：支持 Mac / Linux / Windows
-- **可配置**：提醒时间、冷却时间均可自定义
+## Features
 
-## 快速开始
+- **Smart Detection** — Tracks terminal activity via Claude Code hooks, no manual timer needed
+- **Three-Tier Escalation** — Gentle nudge → ASCII cat → Terminal takeover, progressively more insistent
+- **Zero Dependencies** — Pure Python standard library, works out of the box
+- **Cross-Platform** — Mac / Linux / Windows
+- **Configurable** — Thresholds, cooldown, check intervals all customizable
 
-### 方式一：一键安装（推荐）
+## Quick Start
+
+### Option 1: One-Click Install (Recommended)
 
 ```bash
-git clone https://github.com/yourname/terminal-kitty.git
+git clone https://github.com/zhangluka/terminal-kitty.git
 cd terminal-kitty
 
 # Mac/Linux
@@ -27,40 +29,40 @@ cd terminal-kitty
 install.bat
 ```
 
-安装后重启 Claude Code，Terminal Kitty自动启动。
+Restart Claude Code and Terminal Kitty starts automatically.
 
-### 方式二：直接运行
+### Option 2: Run Directly
 
 ```bash
 python3 terminal_kitty.py
 ```
 
-首次运行会自动创建默认配置。
+Creates default config on first run.
 
-## 三档提醒
+## Three-Tier Reminder
 
-| 档位 | 默认时间 | 行为 | 能否无视 |
-|------|---------|------|---------|
-| 第1档 | 55 分钟 | 一行轻量提醒 | ✅ |
-| 第2档 | 60 分钟 | ASCII 猫咪 + 提醒 | ✅ |
-| 第3档 | 70 分钟 | 终端被猫咪占领 | ❌ 必须按 Enter |
+| Tier | Default Time | Behavior | Can Ignore? |
+|------|-------------|----------|-------------|
+| 1 | 55 min | One-line gentle reminder | ✅ |
+| 2 | 60 min | ASCII cat + reminder | ✅ |
+| 3 | 70 min | Terminal taken over by cat | ❌ Must press Enter |
 
-### 第1档：温柔提醒
+### Tier 1: Gentle Reminder
 ```
-🐱 喵~ 已经55分钟了，快到休息时间了哦
+🐱 Meow~ It's been 55 minutes, break time is coming~
 ```
 
-### 第2档：标准提醒
+### Tier 2: Standard Reminder
 ```
-🐱 喵~ 你已经连续工作60分钟了！
+🐱 Meow~ You've been working for 60 minutes!
    /\_/\
   ( o.o )
    > ^ <  💤
 
-站起来伸个懒腰吧，就像我这样~
+Stand up and stretch, just like me~
 ```
 
-### 第3档：强制休息
+### Tier 3: Forced Break
 ```
 ╔══════════════════════════════════════════════════╗
 ║                                                  ║
@@ -70,30 +72,30 @@ python3 terminal_kitty.py
 ║         /|   |\\                                  ║
 ║        (_|   |_)                                 ║
 ║                                                  ║
-║     ⚠️   你的终端已被猫咪占领！                  ║
+║     ⚠️   YOUR TERMINAL HAS BEEN TAKEN OVER!     ║
 ║                                                  ║
-║     你已经连续工作 70 分钟了                     ║
-║     起来走动 5 分钟再回来                        ║
+║     You've been working for 70 minutes           ║
+║     Take a 5-minute walk                         ║
 ║                                                  ║
-║     [按 Enter 解放猫咪]                          ║
+║     [Press Enter to free the cat]                ║
 ║                                                  ║
 ╚══════════════════════════════════════════════════╝
 ```
 
-## 命令
+## Commands
 
 ```bash
-terminal-kitty              # 启动守护进程
-terminal-kitty --daemon     # 后台模式（用于 Claude Code hook）
-terminal-kitty --ping       # 记录活动时间戳（由 hook 调用）
-terminal-kitty --status     # 查看运行状态
-terminal-kitty --stop       # 停止守护进程
-terminal-kitty --config     # 查看当前配置
+terminal-kitty              # Start daemon
+terminal-kitty --daemon     # Background mode (for Claude Code hook)
+terminal-kitty --ping       # Record activity timestamp (called by hooks)
+terminal-kitty --status     # Check running status
+terminal-kitty --stop       # Stop daemon
+terminal-kitty --config     # View current config
 ```
 
-## 配置
+## Configuration
 
-配置文件位于 `~/.terminal-kitty/config.json`：
+Config file at `~/.terminal-kitty/config.json`:
 
 ```json
 {
@@ -109,28 +111,28 @@ terminal-kitty --config     # 查看当前配置
 }
 ```
 
-| 字段 | 说明 | 默认值 |
-|------|------|--------|
-| `enabled` | 是否启用 | `true` |
-| `thresholds.gentle` | 第1档提醒时间（分钟） | 55 |
-| `thresholds.warning` | 第2档提醒时间（分钟） | 60 |
-| `thresholds.force` | 第3档强制时间（分钟） | 70 |
-| `cooldown` | 休息后冷却时间（分钟） | 5 |
-| `check_interval` | 活动检测间隔（秒） | 30 |
-| `idle_timeout` | 超过此秒数无活动则暂停计时 | 120 |
+| Field | Description | Default |
+|-------|-------------|---------|
+| `enabled` | Enable/disable | `true` |
+| `thresholds.gentle` | Tier 1 reminder time (min) | 55 |
+| `thresholds.warning` | Tier 2 reminder time (min) | 60 |
+| `thresholds.force` | Tier 3 force time (min) | 70 |
+| `cooldown` | Cooldown after break (min) | 5 |
+| `check_interval` | Activity check interval (sec) | 30 |
+| `idle_timeout` | Pause timer after this many sec idle | 120 |
 
-## Claude Code 集成
+## Claude Code Integration
 
-安装脚本会自动配置 4 个 hooks：
+The install script auto-configures 4 hooks:
 
-| Hook | 作用 |
-|------|------|
-| `SessionStart` | 启动守护进程 |
-| `UserPromptSubmit` | 用户输入时记录活动 |
-| `Stop` | Claude 回复结束时记录活动 |
-| `SessionEnd` | 停止守护进程 |
+| Hook | Purpose |
+|------|---------|
+| `SessionStart` | Start daemon |
+| `UserPromptSubmit` | Record activity on user input |
+| `Stop` | Record activity when Claude responds |
+| `SessionEnd` | Stop daemon |
 
-手动配置方法——编辑 `~/.claude/settings.json`：
+Manual setup — edit `~/.claude/settings.json`:
 
 ```json
 {
@@ -182,15 +184,15 @@ terminal-kitty --config     # 查看当前配置
 }
 ```
 
-## 工作原理
+## How It Works
 
-1. Claude Code 启动时，`SessionStart` hook 自动启动守护进程
-2. 用户每次提交 prompt 或 Claude 回复结束时，对应 hook 调用 `--ping` 记录活动时间戳
-3. 守护进程每 30 秒检查活动时间戳，有新活动则推进计时器
-4. 超过 `idle_timeout` 秒无活动，暂停计时（说明你离开了一会儿）
-5. 达到阈值时，根据档位触发对应提醒
-6. 第3档会阻断终端，直到用户确认休息
+1. `SessionStart` hook launches the daemon when Claude Code starts
+2. Each user prompt or Claude response triggers `--ping` to record activity
+3. Daemon checks activity timestamps every 30 seconds; new activity advances the timer
+4. No activity for `idle_timeout` seconds pauses the timer (you stepped away)
+5. When a threshold is hit, the corresponding tier reminder fires
+6. Tier 3 blocks the terminal until the user confirms they'll take a break
 
-## 许可证
+## License
 
 MIT
