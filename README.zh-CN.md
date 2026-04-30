@@ -82,6 +82,9 @@ python3 terminal_kitty.py
 ╚══════════════════════════════════════════════════╝
 ```
 
+<img width="494" height="345" alt="image" src="https://github.com/user-attachments/assets/194d4d97-938e-41ba-8b61-306931f533cb" />
+
+
 ## 命令
 
 ```bash
