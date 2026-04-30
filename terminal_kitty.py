@@ -192,207 +192,23 @@ CAT_COOLDOWN = """
 
 import random
 
-# 多帧动画（每帧是字符串列表）
-CAT_ANIMATIONS = {
-    "stretch": [
-        ["  /\\_/\\", " ( -.- )", "  > ^ <", "  起来了~"],
-        ["  /\\_/\\→", " ( -.- )", "  > ^ <", " /"],
-        ["  /\\_/\\  ah~", " ( ^.^ )", "  > ω < /", " /|   |\\"],
-    ],
-    "groom": [
-        ["  /\\_/\\", " ( ·.· )~~", "  > ω < 🐾"],
-        ["  /\\_/\\", " ( ·.· )~~~", "  > ω <  🐾"],
-        ["  /\\_/\\", " ( ^.^ )", "  > ω < ✨"],
-    ],
-    "chase": [
-        ["  /\\_/\\", " ( o.o )~", "  > ^ <  ~"],
-        ["   /\\_/\\", "  ( o.o )", " ~ > ^ <"],
-        ["  /\\_/\\", " ~ ( o.o )", "   > ^ < ~"],
-        ["  /\\_/\\", " ( ^.^ )~gotcha!", "  > ω <"],
-    ],
-    "nap": [
-        ["  /\\_/\\", " ( -.- )", "  > ^ <"],
-        ["  /\\_/\\", " ( -.- )💤", "  > ^ <  zzz"],
-        ["  /\\_/\\", " ( o.o )", "  > ^ <  nyaa~"],
-    ],
-    "pounce": [
-        ["  /\\_/\\", " ( o.o )  📄", "  > ^ <"],
-        ["  /\\_/\\", " ( >.< )→→", "  > ^ <  📄"],
-        ["  /\\_/\\", " ( ^.^ )  📄", "  > ω <  yay!"],
-    ],
-    "rub": [
-        ["  /\\_/\\", " ( ^.^ )→", "  > ω <"],
-        [" /\\_/\\", "( ^.^ )~~♡", " > ω <"],
-        ["  /\\_/\\", " ( ^.^ )~~♡♡", "  > ω < purrr~"],
-    ],
-    "knead": [
-        ["  /\\_/\\", " ( ^.^ )", "  > ω <  knead"],
-        ["  /\\_/\\", " ( ^.^ )♪", "  > ω <  knead knead"],
-        ["  /\\_/\\", " ( ^.^ )♪♡", "  > ω <  purrr~"],
-    ],
-    "alert": [
-        ["  /\\_/\\", " ( o.o )", "  > ^ <"],
-        ["  /|_|\\", " ( o.o )  ?!", "  > ^ <"],
-        ["  /\\_/\\", " ( -.- )", "  > ^ <  没事~"],
-    ],
-    "shadow": [
-        ["  /\\_/\\", " ( o.o )", "  > ^ <  ●"],
-        ["  /\\_/\\", " ( >.< )→→", "  > ^ < ●"],
-        ["  /\\_/\\", " ( o.o )  ●→", "  > ^ <  哼"],
-    ],
-    "belly": [
-        ["  /\\_/\\", " ( o.o )", "  > ^ <"],
-        ["   /\\   /\\", "  ( o.o )", "   > ^ <", "  /     \\"],
-        ["   /\\   /\\", "  ( ^.^ )", "   > ω <", "  ( ⊙ ⊙ )  摸摸？"],
-    ],
-}
-
-CAT_MOMENTS = {
-    "stretch": "伸了个大大的懒腰",
-    "groom": "舔舔爪子，梳理毛发",
-    "chase": "追着尾巴转了一圈，抓到了！",
-    "nap": "打了个小盹",
-    "rub": "蹭了蹭你的手",
-    "pounce": "扑向一个纸团",
-    "belly": "翻了个身，露出肚皮",
-    "knead": "在键盘旁边踩奶",
-    "alert": "突然竖起耳朵，又趴下了",
-    "shadow": "扑向自己的影子",
-}
+CAT_MOODS = [
+    ("伸了个大大的懒腰", "  /\\_/\\  ah~\n ( ^.^ )\n  > ω < /"),
+    ("舔舔爪子，梳理毛发", "  /\\_/\\\n ( ·.· )~~🐾\n  > ω < ✨"),
+    ("追着尾巴转了一圈", "  /\\_/\\\n ( ^.^ )~gotcha!\n  > ω <"),
+    ("打了个小盹", "  /\\_/\\\n ( -.- ) 💤\n  > ^ < zzz"),
+    ("蹭了蹭你的手", "  /\\_/\\\n ( ^.^ )~~♡\n  > ω < purrr~"),
+    ("扑向一个纸团", "  /\\_/\\\n ( ^.^ ) 📄\n  > ω < gotcha!"),
+    ("翻了个身，露出肚皮", "   /\\   /\\\n  ( ^.^ )\n ( ⊙ ⊙ ) 摸摸？"),
+    ("在键盘旁边踩奶", "  /\\_/\\\n ( ^.^ )♪♡\n  > ω < knead knead~"),
+    ("突然竖起耳朵，又趴下了", "  /|_|\\\n ( o.o ) ？！\n  > ^ <"),
+    ("扑向自己的影子", "  /\\_/\\\n ( >.< )→ ●\n  > ^ < 抓到了！"),
+]
 
 
-def get_random_animation():
-    """随机选一个动画，返回 (name, frames)"""
-    name = random.choice(list(CAT_ANIMATIONS.keys()))
-    return name, CAT_ANIMATIONS[name]
-
-
-def find_active_tty():
-    """找到当前用户最近活跃的终端设备"""
-    import glob
-    import pwd
-
-    try:
-        username = pwd.getpwuid(os.getuid()).pw_name
-    except (KeyError, OSError):
-        return None
-
-    candidates = []
-    for path in glob.glob("/dev/ttys*"):
-        try:
-            stat = os.stat(path)
-            # 只要当前用户拥有的
-            owner = pwd.getpwuid(stat.st_uid).pw_name
-            if owner == username:
-                candidates.append((stat.st_atime, path))
-        except (OSError, KeyError):
-            continue
-
-    if not candidates:
-        return None
-
-    # 返回最近活跃的
-    candidates.sort(reverse=True)
-    return candidates[0][1]
-
-
-def play_animation_tty(name, frames):
-    """在当前终端右上角播放动画，几秒后自动消失"""
-    moment = CAT_MOMENTS.get(name, "")
-    frame_height = max(len(f) for f in frames)
-
-    tty_path = find_active_tty()
-    if not tty_path:
-        return False
-
-    try:
-        tty = open(tty_path, "w")
-    except (OSError, IOError):
-        return False
-
-    def w(s):
-        tty.write(s)
-        tty.flush()
-
-    # 获取终端宽度
-    try:
-        import subprocess as sp
-        size = sp.check_output(["stty", "size"], stdin=open(tty_path)).split()
-        cols = int(size[1])
-    except Exception:
-        cols = 80
-
-    # 保存光标，隐藏光标
-    w("\033[s\033[?25l")
-
-    try:
-        # 播放动画帧（右上角）
-        for frame in frames:
-            # 先清除区域
-            for i in range(frame_height + 2):
-                w(f"\033[{1 + i};1H\033[2K")
-            # moment 标题（靠右）
-            moment_text = f"\033[38;2;255;200;100m🐱 *{moment}*\033[0m"
-            mpad = max(1, cols - len(moment) - 10)
-            w(f"\033[1;{mpad}H{moment_text}")
-            # 动画帧（靠右）
-            for j, line in enumerate(frame):
-                lpad = max(1, cols - len(line) - 4)
-                w(f"\033[{2 + j};{lpad}H\033[38;2;255;180;80m{line}\033[0m")
-            time.sleep(0.5)
-
-        # 最后一帧停留 3 秒
-        time.sleep(3)
-
-        # 渐隐
-        for alpha in [80, 40, 10]:
-            rv = 255 * alpha // 100
-            gv = 180 * alpha // 100
-            bv = 80 * alpha // 100
-            color = f"\033[38;2;{rv};{gv};{bv}m"
-            for i in range(frame_height + 2):
-                w(f"\033[{1 + i};1H\033[2K")
-            mpad = max(1, cols - len(moment) - 10)
-            w(f"\033[1;{mpad}H{color}🐱 *{moment}*\033[0m")
-            for j, line in enumerate(frames[-1]):
-                lpad = max(1, cols - len(line) - 4)
-                w(f"\033[{2 + j};{lpad}H{color}{line}\033[0m")
-            time.sleep(0.15)
-
-        # 清除动画区域
-        for i in range(frame_height + 2):
-            w(f"\033[{1 + i};1H\033[2K")
-
-    finally:
-        # 恢复光标
-        w("\033[u\033[?25h\033[0m")
-        tty.close()
-
-    return True
-
-
-# ──────────────────────────────────────────────
-# 提醒输出（不干扰用户正常终端）
-# ──────────────────────────────────────────────
-
-def print_gentle(minutes):
-    """第1档：轻量提醒，只输出一行"""
-    print(CAT_GENTLE.format(minutes=minutes), flush=True)
-
-
-def print_warning(minutes):
-    """第2档：标准提醒，ASCII猫"""
-    print(CAT_WARNING.format(minutes=minutes), flush=True)
-
-
-def print_force(minutes):
-    """第3档：强制占领，阻断终端"""
-    print(CAT_FORCE.format(minutes=minutes), flush=True)
-
-
-def print_cooldown():
-    """休息确认后的反馈"""
-    print(CAT_COOLDOWN, flush=True)
+def get_random_mood():
+    """随机选一个猫咪行为，返回 (moment, art)"""
+    return random.choice(CAT_MOODS)
 
 
 # ──────────────────────────────────────────────
@@ -400,10 +216,7 @@ def print_cooldown():
 # ──────────────────────────────────────────────
 
 def force_block():
-    """
-    阻断终端，等待用户按 Enter。
-    使用 sys.stdin 读取，确保兼容性。
-    """
+    """阻断终端，等待用户按 Enter"""
     try:
         input()
     except (EOFError, KeyboardInterrupt):
@@ -545,8 +358,8 @@ def run_daemon(config):
 
             # 随机卖萌（仅在工作中且无提醒时触发）
             if current_tier == 0 and time.time() >= next_mood_time:
-                name, frames = get_random_animation()
-                play_animation_tty(name, frames)
+                moment, art = get_random_mood()
+                write_reminder(f"🐱 *{moment}*\n{art}\n")
                 next_mood_time = time.time() + random.randint(int(mood_interval_min), int(mood_interval_max))
 
             # 持久化状态
