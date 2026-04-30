@@ -123,7 +123,7 @@ def check_and_print_reminder():
         pass
 
     # 再检查动画队列
-    if play_queued_animation():
+    if show_queued_mood():
         return True
 
     return False
@@ -197,266 +197,125 @@ CAT_COOLDOWN = """
 import random
 
 CAT_ANIMATIONS = {
-    # 伸懒腰（3帧）
+    # 伸懒腰
     "stretch": [
-        [
-            "🐱 *伸懒腰...*",
-            "       /\\_/\\",
-            "      ( -.- )",
-            "       > ^ <",
-        ],
-        [
-            "🐱 *伸懒腰...*",
-            "       /\\_/\\  ⟋",
-            "      ( -.- )",
-            "       > ^ <  /",
-        ],
-        [
-            "🐱 *伸完了~*",
-            "       /\\_/\\",
-            "      ( ^.^ )",
-            "       > ω <  ah~",
-        ],
+        "       /\\_/\\",
+        "      ( ^.^ )  ah~",
+        "       > ω <  /",
+        "      /|   |\\",
     ],
-    # 舔毛（3帧）
+    # 舔毛
     "groom": [
-        [
-            "🐱 *舔舔左爪*",
-            "       /\\_/\\",
-            "      ( ·.· )~~",
-            "       > ω < 🐾",
-        ],
-        [
-            "🐱 *舔舔右爪*",
-            "       /\\_/\\",
-            "      ( ·.· )~~~",
-            "       > ω <  🐾",
-        ],
-        [
-            "🐱 *毛梳好了*",
-            "       /\\_/\\",
-            "      ( ^.^ )",
-            "       > ω < ✨",
-        ],
+        "       /\\_/\\",
+        "      ( ·.· )~~🐾",
+        "       > ω < ✨",
     ],
-    # 追尾巴（4帧）
+    # 追尾巴
     "chase": [
-        [
-            "🐱 *发现尾巴！*",
-            "       /\\_/\\",
-            "      ( o.o )~",
-            "       > ^ <  ~",
-        ],
-        [
-            "🐱 *追！*",
-            "        /\\_/\\",
-            "       ( o.o )",
-            "    ~  > ^ <",
-        ],
-        [
-            "🐱 *转圈圈~*",
-            "      /\\_/\\",
-            "   ~ ( o.o )",
-            "      > ^ < ~",
-        ],
-        [
-            "🐱 *抓到了！*",
-            "       /\\_/\\",
-            "      ( ^.^ )~gotcha!",
-            "       > ω <",
-        ],
+        "        /\\_/\\",
+        "   ~  ( ^.^ )~gotcha!",
+        "       > ω <",
     ],
-    # 打盹（3帧）
+    # 打盹
     "nap": [
-        [
-            "🐱 *眼皮好重...*",
-            "       /\\_/\\",
-            "      ( -.- )",
-            "       > ^ <",
-        ],
-        [
-            "🐱 *睡着了*",
-            "       /\\_/\\",
-            "      ( -.- )💤",
-            "       > ^ <  zzz",
-        ],
-        [
-            "🐱 *醒了~*",
-            "       /\\_/\\",
-            "      ( o.o )",
-            "       > ^ <  nyaa~",
-        ],
+        "       /\\_/\\",
+        "      ( -.- ) 💤",
+        "       > ^ <  zzz...",
     ],
-    # 蹭蹭（3帧）
+    # 蹭蹭
     "rub": [
-        [
-            "🐱 *靠近你...*",
-            "       /\\_/\\",
-            "      ( ^.^ )→",
-            "       > ω <",
-        ],
-        [
-            "🐱 *蹭蹭~*",
-            "      /\\_/\\",
-            "     ( ^.^ )~~♡",
-            "      > ω <",
-        ],
-        [
-            "🐱 *呼噜呼噜*",
-            "       /\\_/\\",
-            "      ( ^.^ )~~♡♡",
-            "       > ω < purrr~",
-        ],
+        "       /\\_/\\",
+        "      ( ^.^ )~~♡",
+        "       > ω <  purrr~",
     ],
-    # 扑纸团（3帧）
+    # 扑纸团
     "pounce": [
-        [
-            "🐱 *发现纸团！*",
-            "       /\\_/\\",
-            "      ( o.o )  📄",
-            "       > ^ <",
-        ],
-        [
-            "🐱 *准备扑...*",
-            "       /\\_/\\",
-            "      ( >.< )→→→",
-            "       > ^ <  📄",
-        ],
-        [
-            "🐱 *抓到了！*",
-            "       /\\_/\\",
-            "      ( ^.^ )  📄",
-            "       > ω <  yay!",
-        ],
+        "       /\\_/\\",
+        "      ( ^.^ ) 📄",
+        "       > ω <  gotcha!",
     ],
-    # 露肚皮（3帧）
+    # 露肚皮
     "belly": [
-        [
-            "🐱 *翻身...*",
-            "       /\\_/\\",
-            "      ( o.o )",
-            "       > ^ <",
-        ],
-        [
-            "🐱 *露出肚皮*",
-            "        /\\   /\\",
-            "       ( o.o )",
-            "        > ^ <",
-            "       /     \\",
-        ],
-        [
-            "🐱 *等你摸摸*",
-            "        /\\   /\\",
-            "       ( ^.^ )",
-            "        > ω <",
-            "       ( ⊙ ⊙ )  摸摸？",
-        ],
+        "        /\\   /\\",
+        "       ( ^.^ )",
+        "      ( ⊙ ⊙ )  摸摸？",
     ],
-    # 踩奶（3帧）
+    # 踩奶
     "knead": [
-        [
-            "🐱 *开始踩奶*",
-            "       /\\_/\\",
-            "      ( ^.^ )",
-            "       > ω <  knead",
-        ],
-        [
-            "🐱 *踩踩~*",
-            "       /\\_/\\",
-            "      ( ^.^ )♪",
-            "       > ω <  knead knead",
-        ],
-        [
-            "🐱 *呼噜呼噜*",
-            "       /\\_/\\",
-            "      ( ^.^ )♪♡",
-            "       > ω <  purrr~",
-        ],
+        "       /\\_/\\",
+        "      ( ^.^ )♪♡",
+        "       > ω <  knead knead~",
     ],
-    # 警觉（3帧）
+    # 警觉
     "alert": [
-        [
-            "猫咪 *耳朵动了动*",
-            "       /\\_/\\",
-            "      ( o.o )",
-            "       > ^ <",
-        ],
-        [
-            "猫咪 *竖起耳朵！*",
-            "       /|_|\\",
-            "      ( o.o )",
-            "       > ^ <  ?!",
-        ],
-        [
-            "猫咪 *又趴下了*",
-            "       /\\_/\\",
-            "      ( -.- )",
-            "       > ^ <  没事~",
-        ],
+        "       /|_|\\",
+        "      ( o.o )  ？！",
+        "       > ^ <",
     ],
-    # 玩影子（3帧）
+    # 玩影子
     "shadow": [
-        [
-            "🐱 *发现影子！*",
-            "       /\\_/\\",
-            "      ( o.o )",
-            "       > ^ <  ●",
-        ],
-        [
-            "🐱 *扑影子！*",
-            "       /\\_/\\",
-            "      ( >.< )→→",
-            "       > ^ < ●",
-        ],
-        [
-            "🐱 *影子跑了...*",
-            "       /\\_/\\",
-            "      ( o.o )  ●→",
-            "       > ^ <  哼",
-        ],
+        "       /\\_/\\",
+        "      ( >.< )→ ●",
+        "       > ^ <  抓到影子了！",
     ],
+}
+
+# 动画的叙事文字（描述发生了什么）
+CAT_MOMENTS = {
+    "stretch": "伸了个大大的懒腰",
+    "groom": "舔舔爪子，梳理毛发",
+    "chase": "追着尾巴转了一圈，抓到了！",
+    "nap": "打了个小盹",
+    "rub": "蹭了蹭你的手",
+    "pounce": "扑向一个纸团",
+    "belly": "翻了个身，露出肚皮",
+    "knead": "在键盘旁边踩奶",
+    "alert": "突然竖起耳朵，又趴下了",
+    "shadow": "扑向自己的影子",
 }
 
 
 ANIMATION_FILE = CONFIG_DIR / "animation.json"
 
 
-def get_random_animation():
-    """随机选一个猫咪动画"""
+def get_random_mood():
+    """随机选一个猫咪行为，返回 (name, art_lines)"""
     name = random.choice(list(CAT_ANIMATIONS.keys()))
-    return CAT_ANIMATIONS[name]
+    return name, CAT_ANIMATIONS[name]
 
 
-def queue_animation(frames):
-    """守护进程：将动画帧写入队列文件，等待 hook 播放"""
+def queue_mood(name, art_lines):
+    """守护进程：将猫咪行为写入队列文件，等待 hook 显示"""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    moment = CAT_MOMENTS.get(name, "")
+    data = {"name": name, "art": art_lines, "moment": moment}
     with open(ANIMATION_FILE, "w", encoding="utf-8") as f:
-        json.dump({"frames": frames, "frame_delay": 0.6}, f)
+        json.dump(data, f, ensure_ascii=False)
 
 
-def play_queued_animation():
-    """Hook 调用：播放队列中的动画，逐帧输出"""
+def show_queued_mood():
+    """Hook 调用：显示队列中的猫咪行为"""
     try:
         with open(ANIMATION_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError, IOError):
         return False
 
-    frames = data.get("frames", [])
-    frame_delay = data.get("frame_delay", 0.6)
+    art = data.get("art", [])
+    moment = data.get("moment", "")
 
-    if not frames:
+    if not art:
         return False
 
     # 清空队列
     with open(ANIMATION_FILE, "w") as f:
-        json.dump({"frames": []}, f)
+        json.dump({}, f)
 
-    # 逐帧播放
-    for i, frame in enumerate(frames):
-        print("\n".join(frame), flush=True)
-        if i < len(frames) - 1:
-            time.sleep(frame_delay)
+    # 输出：叙事 + ASCII 猫咪
+    if moment:
+        print(f"🐱 *{moment}*", flush=True)
+    print("\n".join(art), flush=True)
+    print("", flush=True)
 
     time.sleep(1.0)
     print("", flush=True)  # 空行结束
@@ -637,7 +496,8 @@ def run_daemon(config):
 
             # 随机卖萌（仅在工作中且无提醒时触发）
             if current_tier == 0 and time.time() >= next_mood_time:
-                queue_animation(get_random_animation())
+                name, art = get_random_mood()
+                queue_mood(name, art)
                 next_mood_time = time.time() + random.randint(int(mood_interval_min), int(mood_interval_max))
 
             # 持久化状态
@@ -712,16 +572,14 @@ def main():
         try:
             with open(ANIMATION_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            frames = data.get("frames", [])
-            if frames:
-                # 播放动画到 stderr
-                frame_delay = data.get("frame_delay", 0.6)
+            art = data.get("art", [])
+            moment = data.get("moment", "")
+            if art:
                 with open(ANIMATION_FILE, "w") as f:
-                    json.dump({"frames": []}, f)
-                for i, frame in enumerate(frames):
-                    print("\n".join(frame), file=sys.stderr, flush=True)
-                    if i < len(frames) - 1:
-                        time.sleep(frame_delay)
+                    json.dump({}, f)
+                if moment:
+                    print(f"🐱 *{moment}*", file=sys.stderr, flush=True)
+                print("\n".join(art), file=sys.stderr, flush=True)
                 sys.exit(2)
         except (FileNotFoundError, json.JSONDecodeError, IOError):
             pass
