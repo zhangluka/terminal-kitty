@@ -297,10 +297,9 @@ def find_active_tty():
 
 
 def play_animation_tty(name, frames):
-    """直接在终端播放动画"""
+    """在备用屏幕播放动画（不影响当前终端内容）"""
     moment = CAT_MOMENTS.get(name, "")
     frame_height = max(len(f) for f in frames)
-    box_height = frame_height + 3
 
     tty_path = find_active_tty()
     if not tty_path:
@@ -315,24 +314,37 @@ def play_animation_tty(name, frames):
         tty.write(s)
         tty.flush()
 
-    # 保存光标，隐藏光标
-    write("\033[s\033[?25l")
-    # 移到第2行
-    write(f"\033[2;1H\033[2K🐱 *{moment}*")
+    # 获取终端宽度
+    try:
+        import subprocess
+        cols = int(subprocess.check_output(["stty", "size"], stdin=open(tty_path)).split()[1])
+    except Exception:
+        cols = 80
+
+    # 进入备用屏幕（完全隔离，不影响原内容）
+    write("\033[?1049h\033[?25l")
+
+    # 右上角位置
+    top_row = 2
+    moment_line = f"🐱 *{moment}*"
 
     try:
-        for i, frame in enumerate(frames):
-            for row in range(3, 3 + frame_height):
-                write(f"\033[{row};1H\033[2K")
+        for frame in frames:
+            # 清屏
+            write("\033[2J")
+            # 右上角：moment 文字
+            pad = max(0, cols - len(moment_line) - 2)
+            write(f"\033[{top_row};{pad}H{moment_line}")
+            # 右上角：动画帧（靠右对齐）
             for j, line in enumerate(frame):
-                write(f"\033[{3 + j};1H{line}")
+                line_pad = max(0, cols - len(line) - 2)
+                write(f"\033[{top_row + 1 + j};{line_pad}H{line}")
             time.sleep(0.5)
 
         time.sleep(1.0)
     finally:
-        for row in range(2, 2 + box_height):
-            write(f"\033[{row};1H\033[2K")
-        write("\033[u\033[?25h")
+        # 退出备用屏幕（恢复原内容）
+        write("\033[?1049l\033[?25h")
         tty.close()
 
     return True
