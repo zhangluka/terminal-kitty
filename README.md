@@ -82,6 +82,9 @@ Stand up and stretch, just like me~
 ╚══════════════════════════════════════════════════╝
 ```
 
+<img width="494" height="345" alt="image" src="https://github.com/user-attachments/assets/01e4b8bb-9c1e-4a06-9793-1325d9afffeb" />
+
+
 ## Commands
 
 ```bash
