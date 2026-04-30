@@ -122,10 +122,6 @@ def check_and_print_reminder():
     except (FileNotFoundError, IOError):
         pass
 
-    # 再检查动画队列
-    if show_queued_mood():
-        return True
-
     return False
 
 
@@ -196,71 +192,61 @@ CAT_COOLDOWN = """
 
 import random
 
+# 多帧动画（每帧是字符串列表）
 CAT_ANIMATIONS = {
-    # 伸懒腰
     "stretch": [
-        "       /\\_/\\",
-        "      ( ^.^ )  ah~",
-        "       > ω <  /",
-        "      /|   |\\",
+        ["  /\\_/\\", " ( -.- )", "  > ^ <", "  起来了~"],
+        ["  /\\_/\\→", " ( -.- )", "  > ^ <", " /"],
+        ["  /\\_/\\  ah~", " ( ^.^ )", "  > ω < /", " /|   |\\"],
     ],
-    # 舔毛
     "groom": [
-        "       /\\_/\\",
-        "      ( ·.· )~~🐾",
-        "       > ω < ✨",
+        ["  /\\_/\\", " ( ·.· )~~", "  > ω < 🐾"],
+        ["  /\\_/\\", " ( ·.· )~~~", "  > ω <  🐾"],
+        ["  /\\_/\\", " ( ^.^ )", "  > ω < ✨"],
     ],
-    # 追尾巴
     "chase": [
-        "        /\\_/\\",
-        "   ~  ( ^.^ )~gotcha!",
-        "       > ω <",
+        ["  /\\_/\\", " ( o.o )~", "  > ^ <  ~"],
+        ["   /\\_/\\", "  ( o.o )", " ~ > ^ <"],
+        ["  /\\_/\\", " ~ ( o.o )", "   > ^ < ~"],
+        ["  /\\_/\\", " ( ^.^ )~gotcha!", "  > ω <"],
     ],
-    # 打盹
     "nap": [
-        "       /\\_/\\",
-        "      ( -.- ) 💤",
-        "       > ^ <  zzz...",
+        ["  /\\_/\\", " ( -.- )", "  > ^ <"],
+        ["  /\\_/\\", " ( -.- )💤", "  > ^ <  zzz"],
+        ["  /\\_/\\", " ( o.o )", "  > ^ <  nyaa~"],
     ],
-    # 蹭蹭
-    "rub": [
-        "       /\\_/\\",
-        "      ( ^.^ )~~♡",
-        "       > ω <  purrr~",
-    ],
-    # 扑纸团
     "pounce": [
-        "       /\\_/\\",
-        "      ( ^.^ ) 📄",
-        "       > ω <  gotcha!",
+        ["  /\\_/\\", " ( o.o )  📄", "  > ^ <"],
+        ["  /\\_/\\", " ( >.< )→→", "  > ^ <  📄"],
+        ["  /\\_/\\", " ( ^.^ )  📄", "  > ω <  yay!"],
     ],
-    # 露肚皮
-    "belly": [
-        "        /\\   /\\",
-        "       ( ^.^ )",
-        "      ( ⊙ ⊙ )  摸摸？",
+    "rub": [
+        ["  /\\_/\\", " ( ^.^ )→", "  > ω <"],
+        [" /\\_/\\", "( ^.^ )~~♡", " > ω <"],
+        ["  /\\_/\\", " ( ^.^ )~~♡♡", "  > ω < purrr~"],
     ],
-    # 踩奶
     "knead": [
-        "       /\\_/\\",
-        "      ( ^.^ )♪♡",
-        "       > ω <  knead knead~",
+        ["  /\\_/\\", " ( ^.^ )", "  > ω <  knead"],
+        ["  /\\_/\\", " ( ^.^ )♪", "  > ω <  knead knead"],
+        ["  /\\_/\\", " ( ^.^ )♪♡", "  > ω <  purrr~"],
     ],
-    # 警觉
     "alert": [
-        "       /|_|\\",
-        "      ( o.o )  ？！",
-        "       > ^ <",
+        ["  /\\_/\\", " ( o.o )", "  > ^ <"],
+        ["  /|_|\\", " ( o.o )  ?!", "  > ^ <"],
+        ["  /\\_/\\", " ( -.- )", "  > ^ <  没事~"],
     ],
-    # 玩影子
     "shadow": [
-        "       /\\_/\\",
-        "      ( >.< )→ ●",
-        "       > ^ <  抓到影子了！",
+        ["  /\\_/\\", " ( o.o )", "  > ^ <  ●"],
+        ["  /\\_/\\", " ( >.< )→→", "  > ^ < ●"],
+        ["  /\\_/\\", " ( o.o )  ●→", "  > ^ <  哼"],
+    ],
+    "belly": [
+        ["  /\\_/\\", " ( o.o )", "  > ^ <"],
+        ["   /\\   /\\", "  ( o.o )", "   > ^ <", "  /     \\"],
+        ["   /\\   /\\", "  ( ^.^ )", "   > ω <", "  ( ⊙ ⊙ )  摸摸？"],
     ],
 }
 
-# 动画的叙事文字（描述发生了什么）
 CAT_MOMENTS = {
     "stretch": "伸了个大大的懒腰",
     "groom": "舔舔爪子，梳理毛发",
@@ -275,50 +261,50 @@ CAT_MOMENTS = {
 }
 
 
-ANIMATION_FILE = CONFIG_DIR / "animation.json"
-
-
-def get_random_mood():
-    """随机选一个猫咪行为，返回 (name, art_lines)"""
+def get_random_animation():
+    """随机选一个动画，返回 (name, frames)"""
     name = random.choice(list(CAT_ANIMATIONS.keys()))
     return name, CAT_ANIMATIONS[name]
 
 
-def queue_mood(name, art_lines):
-    """守护进程：将猫咪行为写入队列文件，等待 hook 显示"""
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+def play_animation_tty(name, frames):
+    """直接在终端播放动画（通过 /dev/tty）"""
     moment = CAT_MOMENTS.get(name, "")
-    data = {"name": name, "art": art_lines, "moment": moment}
-    with open(ANIMATION_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False)
-
-
-def show_queued_mood():
-    """Hook 调用：显示队列中的猫咪行为"""
+    frame_height = max(len(f) for f in frames)
+    box_height = frame_height + 3  # +moment +border +空行
     try:
-        with open(ANIMATION_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError, IOError):
+        tty = open("/dev/tty", "w")
+    except (OSError, IOError):
         return False
 
-    art = data.get("art", [])
-    moment = data.get("moment", "")
+    def write(s):
+        tty.write(s)
+        tty.flush()
 
-    if not art:
-        return False
+    # 保存光标，隐藏光标
+    write("\033[s\033[?25l")
+    # 移到第2行，画上边框
+    write(f"\033[2;1H\033[2K🐱 *{moment}*")
 
-    # 清空队列
-    with open(ANIMATION_FILE, "w") as f:
-        json.dump({}, f)
+    try:
+        for i, frame in enumerate(frames):
+            # 清除动画区域
+            for row in range(3, 3 + frame_height):
+                write(f"\033[{row};1H\033[2K")
+            # 画当前帧
+            for j, line in enumerate(frame):
+                write(f"\033[{3 + j};1H{line}")
+            time.sleep(0.5)
 
-    # 输出：叙事 + ASCII 猫咪
-    if moment:
-        print(f"🐱 *{moment}*", flush=True)
-    print("\n".join(art), flush=True)
-    print("", flush=True)
+        # 最后一帧多停留一下
+        time.sleep(1.0)
+    finally:
+        # 清除动画区域，恢复光标，显示光标
+        for row in range(2, 2 + box_height):
+            write(f"\033[{row};1H\033[2K")
+        write("\033[u\033[?25h")
+        tty.close()
 
-    time.sleep(1.0)
-    print("", flush=True)  # 空行结束
     return True
 
 
@@ -496,8 +482,8 @@ def run_daemon(config):
 
             # 随机卖萌（仅在工作中且无提醒时触发）
             if current_tier == 0 and time.time() >= next_mood_time:
-                name, art = get_random_mood()
-                queue_mood(name, art)
+                name, frames = get_random_animation()
+                play_animation_tty(name, frames)
                 next_mood_time = time.time() + random.randint(int(mood_interval_min), int(mood_interval_max))
 
             # 持久化状态
@@ -567,21 +553,6 @@ def main():
                     f.write("")
                 sys.exit(2)
         except (FileNotFoundError, IOError):
-            pass
-        # 检查动画队列
-        try:
-            with open(ANIMATION_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            art = data.get("art", [])
-            moment = data.get("moment", "")
-            if art:
-                with open(ANIMATION_FILE, "w") as f:
-                    json.dump({}, f)
-                if moment:
-                    print(f"🐱 *{moment}*", file=sys.stderr, flush=True)
-                print("\n".join(art), file=sys.stderr, flush=True)
-                sys.exit(2)
-        except (FileNotFoundError, json.JSONDecodeError, IOError):
             pass
         # 没有内容，正常退出
         return
