@@ -676,6 +676,7 @@ def main():
     parser.add_argument("--daemon", action="store_true", help="后台守护进程模式")
     parser.add_argument("--ping", action="store_true", help="记录活动时间戳（由 hook 调用）")
     parser.add_argument("--check-reminder", action="store_true", help="检查并显示提醒（由 hook 调用）")
+    parser.add_argument("--hook-ping", action="store_true", help="ping + check，有内容时 exit 2 触发系统提醒")
     parser.add_argument("--status", action="store_true", help="查看当前状态")
     parser.add_argument("--stop", action="store_true", help="停止守护进程")
     parser.add_argument("--config", action="store_true", help="查看/编辑配置")
@@ -690,6 +691,41 @@ def main():
 
     if args.check_reminder:
         check_and_print_reminder()
+        return
+
+    if args.hook_ping:
+        # 供 Claude Code hook 使用：ping + 检查提醒
+        # 有内容时输出到 stderr 并 exit 2，触发 Claude Code 系统提醒
+        ping_activity()
+        # 检查普通提醒
+        try:
+            with open(REMINDER_FILE, "r", encoding="utf-8") as f:
+                text = f.read()
+            if text.strip():
+                print(text, file=sys.stderr, flush=True)
+                with open(REMINDER_FILE, "w") as f:
+                    f.write("")
+                sys.exit(2)
+        except (FileNotFoundError, IOError):
+            pass
+        # 检查动画队列
+        try:
+            with open(ANIMATION_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            frames = data.get("frames", [])
+            if frames:
+                # 播放动画到 stderr
+                frame_delay = data.get("frame_delay", 0.6)
+                with open(ANIMATION_FILE, "w") as f:
+                    json.dump({"frames": []}, f)
+                for i, frame in enumerate(frames):
+                    print("\n".join(frame), file=sys.stderr, flush=True)
+                    if i < len(frames) - 1:
+                        time.sleep(frame_delay)
+                sys.exit(2)
+        except (FileNotFoundError, json.JSONDecodeError, IOError):
+            pass
+        # 没有内容，正常退出
         return
 
     if args.stop:
