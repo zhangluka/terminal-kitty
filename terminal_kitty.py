@@ -297,117 +297,78 @@ def find_active_tty():
 
 
 def play_animation_tty(name, frames):
-    """在独立终端窗口播放动画，完全隔离"""
-    import subprocess
-    import tempfile
-    import json
-
+    """在当前终端右上角播放动画，几秒后自动消失"""
     moment = CAT_MOMENTS.get(name, "")
+    frame_height = max(len(f) for f in frames)
 
-    # 把动画数据写到临时 JSON 文件
-    data = {"moment": moment, "frames": frames}
-    fd, data_path = tempfile.mkstemp(suffix=".json", prefix="kitty_data_")
-    with os.fdopen(fd, "w") as f:
-        json.dump(data, f, ensure_ascii=False)
-
-    # 写临时播放脚本（不使用 f-string 避免转义问题）
-    script_lines = [
-        '#!/usr/bin/env python3',
-        'import sys, time, os, tty, termios, json',
-        '',
-        'with open(' + repr(data_path) + ') as f:',
-        '    data = json.load(f)',
-        'moment = data["moment"]',
-        'frames = data["frames"]',
-        'os.unlink(' + repr(data_path) + ')',
-        '',
-        'BG = "\\033[48;2;30;30;50m"',
-        'FG = "\\033[38;2;255;200;100m"',
-        'CAT = "\\033[38;2;255;180;80m"',
-        'HINT_C = "\\033[38;2;150;150;170m"',
-        'BOLD = "\\033[1m"',
-        'DIM = "\\033[2m"',
-        '',
-        'def w(s):',
-        '    sys.stdout.write(s); sys.stdout.flush()',
-        '',
-        'w("\\033[?1049h\\033[?25l")',
-        'cols, rows = os.get_terminal_size()',
-        '',
-        'for r in range(1, rows + 1):',
-        '    w(f"\\033[{r};1H{BG}{chr(32) * cols}")',
-        '',
-        'frame_height = max(len(f) for f in frames)',
-        'total_lines = frame_height + 3',
-        'start_row = max(1, (rows - total_lines) // 2)',
-        '',
-        'def draw_center(row, text, color=""):',
-        '    display_width = sum(2 if ord(c) > 127 else 1 for c in text)',
-        '    pad = max(0, (cols - display_width) // 2)',
-        '    w(f"\\033[{row};{pad}H{color}{text}")',
-        '',
-        'for frame in frames:',
-        '    for r in range(start_row, start_row + total_lines):',
-        '        w(f"\\033[{r};1H{BG}{chr(32) * cols}")',
-        '    draw_center(start_row, f"🐱 *{moment}*", FG + BOLD)',
-        '    for j, line in enumerate(frame):',
-        '        draw_center(start_row + 2 + j, line, CAT)',
-        '    time.sleep(0.5)',
-        '',
-        'hint_row = start_row + frame_height + 2',
-        'draw_center(hint_row, "press any key ~", HINT_C + DIM)',
-        '',
-        'fd = sys.stdin.fileno()',
-        'old = termios.tcgetattr(fd)',
-        'try:',
-        '    tty.setraw(fd)',
-        '    os.read(fd, 1)',
-        'finally:',
-        '    termios.tcsetattr(fd, termios.TCSADRAIN, old)',
-        '',
-        'last_frame = frames[-1]',
-        'for opacity in [100, 60, 30, 10]:',
-        '    r_val = 255 * opacity // 100',
-        '    g_val = 180 * opacity // 100',
-        '    b_val = 80 * opacity // 100',
-        '    c = f"\\033[38;2;{r_val};{g_val};{b_val}m"',
-        '    for r in range(1, rows + 1):',
-        '        w(f"\\033[{r};1H{BG}{chr(32) * cols}")',
-        '    draw_center(start_row, f"🐱 *{moment}*", FG + BOLD)',
-        '    for j, line in enumerate(last_frame):',
-        '        draw_center(start_row + 2 + j, line, c)',
-        '    time.sleep(0.12)',
-        '',
-        'w("\\033[?1049l\\033[?25h")',
-    ]
-
-    script_fd, script_path = tempfile.mkstemp(suffix=".py", prefix="kitty_anim_")
-    with os.fdopen(script_fd, "w") as f:
-        f.write("\n".join(script_lines) + "\n")
+    tty_path = find_active_tty()
+    if not tty_path:
+        return False
 
     try:
-        apple_script = f'''
-        tell application "Terminal"
-            activate
-            set w to do script "python3 {script_path}; rm -f {script_path}"
-            set custom title of w to "🐱 Terminal Kitty"
-            set number of columns of w to 46
-            set number of rows of w to 14
-            set background color of w to {{12160, 12160, 20608}}
-            set normal text color of w to {{65535, 51400, 25600}}
-            set cursor color of w to {{65535, 51400, 25600}}
-        end tell
-        '''
-        subprocess.run(["osascript", "-e", apple_script],
-                        capture_output=True, timeout=5)
-        return True
-    except Exception:
-        try:
-            os.unlink(script_path)
-            os.unlink(data_path)
-        except Exception:
-            pass
+        tty = open(tty_path, "w")
+    except (OSError, IOError):
         return False
+
+    def w(s):
+        tty.write(s)
+        tty.flush()
+
+    # 获取终端宽度
+    try:
+        import subprocess as sp
+        size = sp.check_output(["stty", "size"], stdin=open(tty_path)).split()
+        cols = int(size[1])
+    except Exception:
+        cols = 80
+
+    # 保存光标，隐藏光标
+    w("\033[s\033[?25l")
+
+    try:
+        # 播放动画帧（右上角）
+        for frame in frames:
+            # 先清除区域
+            for i in range(frame_height + 2):
+                w(f"\033[{1 + i};1H\033[2K")
+            # moment 标题（靠右）
+            moment_text = f"\033[38;2;255;200;100m🐱 *{moment}*\033[0m"
+            mpad = max(1, cols - len(moment) - 10)
+            w(f"\033[1;{mpad}H{moment_text}")
+            # 动画帧（靠右）
+            for j, line in enumerate(frame):
+                lpad = max(1, cols - len(line) - 4)
+                w(f"\033[{2 + j};{lpad}H\033[38;2;255;180;80m{line}\033[0m")
+            time.sleep(0.5)
+
+        # 最后一帧停留 3 秒
+        time.sleep(3)
+
+        # 渐隐
+        for alpha in [80, 40, 10]:
+            rv = 255 * alpha // 100
+            gv = 180 * alpha // 100
+            bv = 80 * alpha // 100
+            color = f"\033[38;2;{rv};{gv};{bv}m"
+            for i in range(frame_height + 2):
+                w(f"\033[{1 + i};1H\033[2K")
+            mpad = max(1, cols - len(moment) - 10)
+            w(f"\033[1;{mpad}H{color}🐱 *{moment}*\033[0m")
+            for j, line in enumerate(frames[-1]):
+                lpad = max(1, cols - len(line) - 4)
+                w(f"\033[{2 + j};{lpad}H{color}{line}\033[0m")
+            time.sleep(0.15)
+
+        # 清除动画区域
+        for i in range(frame_height + 2):
+            w(f"\033[{1 + i};1H\033[2K")
+
+    finally:
+        # 恢复光标
+        w("\033[u\033[?25h\033[0m")
+        tty.close()
+
+    return True
 
 
 # ──────────────────────────────────────────────
