@@ -267,13 +267,47 @@ def get_random_animation():
     return name, CAT_ANIMATIONS[name]
 
 
+def find_active_tty():
+    """找到当前用户最近活跃的终端设备"""
+    import glob
+    import pwd
+
+    try:
+        username = pwd.getpwuid(os.getuid()).pw_name
+    except (KeyError, OSError):
+        return None
+
+    candidates = []
+    for path in glob.glob("/dev/ttys*"):
+        try:
+            stat = os.stat(path)
+            # 只要当前用户拥有的
+            owner = pwd.getpwuid(stat.st_uid).pw_name
+            if owner == username:
+                candidates.append((stat.st_atime, path))
+        except (OSError, KeyError):
+            continue
+
+    if not candidates:
+        return None
+
+    # 返回最近活跃的
+    candidates.sort(reverse=True)
+    return candidates[0][1]
+
+
 def play_animation_tty(name, frames):
-    """直接在终端播放动画（通过 /dev/tty）"""
+    """直接在终端播放动画"""
     moment = CAT_MOMENTS.get(name, "")
     frame_height = max(len(f) for f in frames)
-    box_height = frame_height + 3  # +moment +border +空行
+    box_height = frame_height + 3
+
+    tty_path = find_active_tty()
+    if not tty_path:
+        return False
+
     try:
-        tty = open("/dev/tty", "w")
+        tty = open(tty_path, "w")
     except (OSError, IOError):
         return False
 
@@ -283,23 +317,19 @@ def play_animation_tty(name, frames):
 
     # 保存光标，隐藏光标
     write("\033[s\033[?25l")
-    # 移到第2行，画上边框
+    # 移到第2行
     write(f"\033[2;1H\033[2K🐱 *{moment}*")
 
     try:
         for i, frame in enumerate(frames):
-            # 清除动画区域
             for row in range(3, 3 + frame_height):
                 write(f"\033[{row};1H\033[2K")
-            # 画当前帧
             for j, line in enumerate(frame):
                 write(f"\033[{3 + j};1H{line}")
             time.sleep(0.5)
 
-        # 最后一帧多停留一下
         time.sleep(1.0)
     finally:
-        # 清除动画区域，恢复光标，显示光标
         for row in range(2, 2 + box_height):
             write(f"\033[{row};1H\033[2K")
         write("\033[u\033[?25h")
