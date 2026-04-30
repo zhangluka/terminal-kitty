@@ -36,6 +36,8 @@ CONFIG_DIR = Path.home() / ".terminal-kitty"
 CONFIG_FILE = CONFIG_DIR / "config.json"
 PID_FILE = CONFIG_DIR / "terminal-kitty.pid"
 ACTIVITY_FILE = CONFIG_DIR / "activity.json"
+REMINDER_FILE = CONFIG_DIR / "reminder.txt"
+STATE_FILE = CONFIG_DIR / "state.json"
 
 
 def load_config():
@@ -91,6 +93,53 @@ def get_last_activity_time():
         return data.get("timestamp", 0)
     except (FileNotFoundError, json.JSONDecodeError, IOError):
         return 0
+
+
+# ──────────────────────────────────────────────
+# 提醒文件管理（守护进程写入，hook 读取显示）
+# ──────────────────────────────────────────────
+
+def write_reminder(text):
+    """守护进程写入提醒到文件"""
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    with open(REMINDER_FILE, "w", encoding="utf-8") as f:
+        f.write(text)
+
+
+def check_and_print_reminder():
+    """检查并显示提醒（由 hook 调用），返回是否有提醒"""
+    try:
+        with open(REMINDER_FILE, "r", encoding="utf-8") as f:
+            text = f.read()
+        if text.strip():
+            print(text, flush=True)
+            # 清空提醒文件
+            with open(REMINDER_FILE, "w") as f:
+                f.write("")
+            return True
+    except (FileNotFoundError, IOError):
+        pass
+    return False
+
+
+# ──────────────────────────────────────────────
+# 守护进程状态持久化（支持冷却跨重启）
+# ──────────────────────────────────────────────
+
+def save_state(state):
+    """保存守护进程状态"""
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    with open(STATE_FILE, "w") as f:
+        json.dump(state, f)
+
+
+def load_state():
+    """加载守护进程状态"""
+    try:
+        with open(STATE_FILE, "r") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, IOError):
+        return {"elapsed_seconds": 0, "current_tier": 0, "in_cooldown": False, "cooldown_until": 0}
 
 
 # ──────────────────────────────────────────────
@@ -226,6 +275,7 @@ def run_daemon(config):
     # 信号处理：优雅退出
     def cleanup(signum, frame):
         remove_pid()
+        save_state({"elapsed_seconds": 0, "current_tier": 0, "in_cooldown": False, "cooldown_until": 0})
         sys.exit(0)
 
     signal.signal(signal.SIGTERM, cleanup)
@@ -236,17 +286,13 @@ def run_daemon(config):
     cooldown_minutes = config["cooldown"]
     idle_timeout = config.get("idle_timeout", 120)
 
-    # 状态
-    elapsed_seconds = 0
-    current_tier = 0  # 0=正常, 1=温柔, 2=警告, 3=强制
-    in_cooldown = False
-    cooldown_until = 0
+    # 加载上次状态（支持冷却跨重启）
+    state = load_state()
+    elapsed_seconds = state.get("elapsed_seconds", 0)
+    current_tier = state.get("current_tier", 0)
+    in_cooldown = state.get("in_cooldown", False)
+    cooldown_until = state.get("cooldown_until", 0)
     last_seen_activity = get_last_activity_time()
-
-    print("🐱 Terminal Kitty 已启动，守护你的健康~", flush=True)
-    print(f"   提醒阈值: {thresholds['gentle']}min / {thresholds['warning']}min / {thresholds['force']}min", flush=True)
-    print(f"   检测间隔: {check_interval}s | 冷却时间: {cooldown_minutes}min | 空闲超时: {idle_timeout}s", flush=True)
-    print("", flush=True)
 
     try:
         while True:
@@ -259,7 +305,6 @@ def run_daemon(config):
                     elapsed_seconds = 0
                     current_tier = 0
                     last_seen_activity = get_last_activity_time()
-                    print("🐱 冷却结束，猫咪重新开始守护~", flush=True)
                 continue
 
             # 检测活动（通过活动文件）
@@ -290,27 +335,34 @@ def run_daemon(config):
             elif elapsed_minutes >= thresholds["gentle"]:
                 new_tier = 1
 
-            # 档位变化时触发提醒
+            # 档位变化时，写入提醒文件（由 hook 读取并显示）
             if new_tier > current_tier:
                 current_tier = new_tier
 
                 if current_tier == 1:
-                    print_gentle(int(elapsed_minutes))
+                    write_reminder(CAT_GENTLE.format(minutes=int(elapsed_minutes)))
                 elif current_tier == 2:
-                    print_warning(int(elapsed_minutes))
+                    write_reminder(CAT_WARNING.format(minutes=int(elapsed_minutes)))
                 elif current_tier == 3:
-                    print_force(int(elapsed_minutes))
-                    force_block()
-                    # 用户确认休息，进入冷却
-                    print_cooldown()
+                    write_reminder(CAT_FORCE.format(minutes=int(elapsed_minutes)))
+                    # 第3档：写入提醒后进入冷却
+                    # 等下一次 hook 触发时显示，然后自动进入冷却
                     in_cooldown = True
                     cooldown_until = time.time() + (cooldown_minutes * 60)
+
+            # 持久化状态
+            save_state({
+                "elapsed_seconds": elapsed_seconds,
+                "current_tier": current_tier,
+                "in_cooldown": in_cooldown,
+                "cooldown_until": cooldown_until
+            })
 
     except KeyboardInterrupt:
         pass
     finally:
         remove_pid()
-        print("\n🐱 Terminal Kitty 已退出，下次见~", flush=True)
+        save_state({"elapsed_seconds": 0, "current_tier": 0, "in_cooldown": False, "cooldown_until": 0})
 
 
 # ──────────────────────────────────────────────
@@ -333,6 +385,7 @@ def main():
     )
     parser.add_argument("--daemon", action="store_true", help="后台守护进程模式")
     parser.add_argument("--ping", action="store_true", help="记录活动时间戳（由 hook 调用）")
+    parser.add_argument("--check-reminder", action="store_true", help="检查并显示提醒（由 hook 调用）")
     parser.add_argument("--status", action="store_true", help="查看当前状态")
     parser.add_argument("--stop", action="store_true", help="停止守护进程")
     parser.add_argument("--config", action="store_true", help="查看/编辑配置")
@@ -343,6 +396,10 @@ def main():
 
     if args.ping:
         ping_activity()
+        return
+
+    if args.check_reminder:
+        check_and_print_reminder()
         return
 
     if args.stop:
