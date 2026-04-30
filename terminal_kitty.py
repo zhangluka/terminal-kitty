@@ -297,83 +297,97 @@ def find_active_tty():
 
 
 def play_animation_tty(name, frames):
-    """在备用屏幕播放动画，等用户按键后渐隐消失"""
+    """在独立终端窗口播放动画，完全隔离"""
+    import subprocess
+    import tempfile
+    import json
+
     moment = CAT_MOMENTS.get(name, "")
-    frame_height = max(len(f) for f in frames)
 
-    tty_path = find_active_tty()
-    if not tty_path:
-        return False
+    # 把动画数据写到临时 JSON 文件
+    data = {"moment": moment, "frames": frames}
+    fd, data_path = tempfile.mkstemp(suffix=".json", prefix="kitty_data_")
+    with os.fdopen(fd, "w") as f:
+        json.dump(data, f, ensure_ascii=False)
+
+    # 写临时播放脚本
+    script_code = f'''#!/usr/bin/env python3
+import sys, time, os, tty, termios, json
+
+with open({data_path!r}) as f:
+    data = json.load(f)
+moment = data["moment"]
+frames = data["frames"]
+os.unlink({data_path!r})
+
+def w(s):
+    sys.stdout.write(s); sys.stdout.flush()
+
+w("\\033[?1049h\\033[?25l")
+cols = os.get_terminal_size().columns
+top = 2
+
+for frame in frames:
+    w("\\033[2J")
+    ml = f"🐱 *{{moment}}*"
+    pad = max(0, cols - len(ml) - 4)
+    w(f"\\033[{{top}};{{pad}}H{{ml}}")
+    for j, line in enumerate(frame):
+        lp = max(0, cols - len(line) - 4)
+        w(f"\\033[{{top+1+j}};{{lp}}H{{line}}")
+    time.sleep(0.5)
+
+hint = "按任意键继续 ~"
+hp = max(0, cols - len(hint) - 4)
+hr = top + len(frames[0]) + 2
+w(f"\\033[{{hr}};{{hp}}H\\033[2m{{hint}}\\033[0m")
+
+fd = sys.stdin.fileno()
+old = termios.tcgetattr(fd)
+try:
+    tty.setraw(fd)
+    os.read(fd, 1)
+finally:
+    termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+for attr in ["0", "2", "2;2", "8"]:
+    w("\\033[2J")
+    ml = f"🐱 *{{moment}}*"
+    pad = max(0, cols - len(ml) - 4)
+    w(f"\\033[{{top}};{{pad}}H\\033[{{attr}}m{{ml}}")
+    for j, line in enumerate(frames[-1]):
+        lp = max(0, cols - len(line) - 4)
+        w(f"\\033[{{top+1+j}};{{lp}}H\\033[{{attr}}m{{line}}")
+    time.sleep(0.15)
+
+w("\\033[?1049l\\033[?25h")
+'''
+
+    script_fd, script_path = tempfile.mkstemp(suffix=".py", prefix="kitty_anim_")
+    with os.fdopen(script_fd, "w") as f:
+        f.write(script_code)
 
     try:
-        tty = open(tty_path, "w")
-    except (OSError, IOError):
-        return False
-
-    def write(s):
-        tty.write(s)
-        tty.flush()
-
-    # 获取终端宽度
-    try:
-        import subprocess
-        cols = int(subprocess.check_output(["stty", "size"], stdin=open(tty_path)).split()[1])
+        # 用 osascript 打开 Terminal.app 新窗口运行
+        apple_script = f'''
+        tell application "Terminal"
+            activate
+            set w to do script "python3 {script_path}; rm -f {script_path}; exit"
+            set custom title of w to "🐱 Terminal Kitty"
+            set number of columns of w to 50
+            set number of rows of w to 12
+        end tell
+        '''
+        subprocess.run(["osascript", "-e", apple_script],
+                        capture_output=True, timeout=5)
+        return True
     except Exception:
-        cols = 80
-
-    # 进入备用屏幕，隐藏光标
-    write("\033[?1049h\033[?25l")
-
-    top_row = 2
-    moment_line = f"🐱 *{moment}*"
-
-    # 播放动画
-    for frame in frames:
-        write("\033[2J")
-        pad = max(0, cols - len(moment_line) - 2)
-        write(f"\033[{top_row};{pad}H{moment_line}")
-        for j, line in enumerate(frame):
-            line_pad = max(0, cols - len(line) - 2)
-            write(f"\033[{top_row + 1 + j};{line_pad}H{line}")
-        time.sleep(0.5)
-
-    # 动画结束，显示提示
-    hint = "按任意键继续~"
-    hint_pad = max(0, cols - len(hint) - 2)
-    hint_row = top_row + frame_height + 2
-    write(f"\033[{hint_row};{hint_pad}H\033[2m{hint}\033[0m")
-
-    # 等待用户按键
-    try:
-        import tty as tty_mod
-        import termios
-        fd = os.open(tty_path, os.O_RDONLY)
-        old_settings = termios.tcgetattr(fd)
         try:
-            tty_mod.setraw(fd)
-            os.read(fd, 1)
-        finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-            os.close(fd)
-    except Exception:
-        # 备用方案：等 8 秒
-        time.sleep(8)
-
-    # 渐隐消失：normal → dim → 很淡 → 消失
-    for attr in ["0", "2", "2;2", "8"]:
-        write("\033[2J")
-        pad = max(0, cols - len(moment_line) - 2)
-        write(f"\033[{top_row};{pad}H\033[{attr}m{moment_line}")
-        for j, line in enumerate(frames[-1]):
-            line_pad = max(0, cols - len(line) - 2)
-            write(f"\033[{top_row + 1 + j};{line_pad}H\033[{attr}m{line}")
-        time.sleep(0.15)
-
-    # 退出备用屏幕
-    write("\033[?1049l\033[?25h")
-    tty.close()
-
-    return True
+            os.unlink(script_path)
+            os.unlink(data_path)
+        except Exception:
+            pass
+        return False
 
 
 # ──────────────────────────────────────────────
