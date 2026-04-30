@@ -109,18 +109,23 @@ def write_reminder(text):
 
 
 def check_and_print_reminder():
-    """检查并显示提醒（由 hook 调用），返回是否有提醒"""
+    """检查并显示提醒或播放动画（由 hook 调用），返回是否有内容"""
+    # 先检查普通提醒
     try:
         with open(REMINDER_FILE, "r", encoding="utf-8") as f:
             text = f.read()
         if text.strip():
             print(text, flush=True)
-            # 清空提醒文件
             with open(REMINDER_FILE, "w") as f:
                 f.write("")
             return True
     except (FileNotFoundError, IOError):
         pass
+
+    # 再检查动画队列
+    if play_queued_animation():
+        return True
+
     return False
 
 
@@ -413,23 +418,49 @@ CAT_ANIMATIONS = {
 }
 
 
+ANIMATION_FILE = CONFIG_DIR / "animation.json"
+
+
 def get_random_animation():
     """随机选一个猫咪动画"""
     name = random.choice(list(CAT_ANIMATIONS.keys()))
     return CAT_ANIMATIONS[name]
 
 
-def play_animation(frames, frame_delay=0.6):
-    """播放动画：逐帧写入提醒文件"""
+def queue_animation(frames):
+    """守护进程：将动画帧写入队列文件，等待 hook 播放"""
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    with open(ANIMATION_FILE, "w", encoding="utf-8") as f:
+        json.dump({"frames": frames, "frame_delay": 0.6}, f)
+
+
+def play_queued_animation():
+    """Hook 调用：播放队列中的动画，逐帧输出"""
+    try:
+        with open(ANIMATION_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, IOError):
+        return False
+
+    frames = data.get("frames", [])
+    frame_delay = data.get("frame_delay", 0.6)
+
+    if not frames:
+        return False
+
+    # 清空队列
+    with open(ANIMATION_FILE, "w") as f:
+        json.dump({"frames": []}, f)
+
+    # 逐帧播放
     for i, frame in enumerate(frames):
-        text = "\n".join(frame)
-        write_reminder(text)
+        print("\n".join(frame), flush=True)
         if i < len(frames) - 1:
             time.sleep(frame_delay)
-    # 最后一帧停留久一点
-    time.sleep(1.5)
-    # 清空
-    write_reminder("")
+
+    time.sleep(1.0)
+    print("", flush=True)  # 空行结束
+    return True
 
 
 # ──────────────────────────────────────────────
@@ -606,7 +637,7 @@ def run_daemon(config):
 
             # 随机卖萌（仅在工作中且无提醒时触发）
             if current_tier == 0 and time.time() >= next_mood_time:
-                play_animation(get_random_animation())
+                queue_animation(get_random_animation())
                 next_mood_time = time.time() + random.randint(int(mood_interval_min), int(mood_interval_max))
 
             # 持久化状态
