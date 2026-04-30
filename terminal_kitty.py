@@ -310,72 +310,92 @@ def play_animation_tty(name, frames):
     with os.fdopen(fd, "w") as f:
         json.dump(data, f, ensure_ascii=False)
 
-    # 写临时播放脚本
-    script_code = f'''#!/usr/bin/env python3
-import sys, time, os, tty, termios, json
-
-with open({data_path!r}) as f:
-    data = json.load(f)
-moment = data["moment"]
-frames = data["frames"]
-os.unlink({data_path!r})
-
-def w(s):
-    sys.stdout.write(s); sys.stdout.flush()
-
-w("\\033[?1049h\\033[?25l")
-cols = os.get_terminal_size().columns
-top = 2
-
-for frame in frames:
-    w("\\033[2J")
-    ml = f"🐱 *{{moment}}*"
-    pad = max(0, cols - len(ml) - 4)
-    w(f"\\033[{{top}};{{pad}}H{{ml}}")
-    for j, line in enumerate(frame):
-        lp = max(0, cols - len(line) - 4)
-        w(f"\\033[{{top+1+j}};{{lp}}H{{line}}")
-    time.sleep(0.5)
-
-hint = "按任意键继续 ~"
-hp = max(0, cols - len(hint) - 4)
-hr = top + len(frames[0]) + 2
-w(f"\\033[{{hr}};{{hp}}H\\033[2m{{hint}}\\033[0m")
-
-fd = sys.stdin.fileno()
-old = termios.tcgetattr(fd)
-try:
-    tty.setraw(fd)
-    os.read(fd, 1)
-finally:
-    termios.tcsetattr(fd, termios.TCSADRAIN, old)
-
-for attr in ["0", "2", "2;2", "8"]:
-    w("\\033[2J")
-    ml = f"🐱 *{{moment}}*"
-    pad = max(0, cols - len(ml) - 4)
-    w(f"\\033[{{top}};{{pad}}H\\033[{{attr}}m{{ml}}")
-    for j, line in enumerate(frames[-1]):
-        lp = max(0, cols - len(line) - 4)
-        w(f"\\033[{{top+1+j}};{{lp}}H\\033[{{attr}}m{{line}}")
-    time.sleep(0.15)
-
-w("\\033[?1049l\\033[?25h")
-'''
+    # 写临时播放脚本（不使用 f-string 避免转义问题）
+    script_lines = [
+        '#!/usr/bin/env python3',
+        'import sys, time, os, tty, termios, json',
+        '',
+        'with open(' + repr(data_path) + ') as f:',
+        '    data = json.load(f)',
+        'moment = data["moment"]',
+        'frames = data["frames"]',
+        'os.unlink(' + repr(data_path) + ')',
+        '',
+        'BG = "\\033[48;2;30;30;50m"',
+        'FG = "\\033[38;2;255;200;100m"',
+        'CAT = "\\033[38;2;255;180;80m"',
+        'HINT_C = "\\033[38;2;150;150;170m"',
+        'BOLD = "\\033[1m"',
+        'DIM = "\\033[2m"',
+        '',
+        'def w(s):',
+        '    sys.stdout.write(s); sys.stdout.flush()',
+        '',
+        'w("\\033[?1049h\\033[?25l")',
+        'cols, rows = os.get_terminal_size()',
+        '',
+        'for r in range(1, rows + 1):',
+        '    w(f"\\033[{r};1H{BG}{chr(32) * cols}")',
+        '',
+        'frame_height = max(len(f) for f in frames)',
+        'total_lines = frame_height + 3',
+        'start_row = max(1, (rows - total_lines) // 2)',
+        '',
+        'def draw_center(row, text, color=""):',
+        '    display_width = sum(2 if ord(c) > 127 else 1 for c in text)',
+        '    pad = max(0, (cols - display_width) // 2)',
+        '    w(f"\\033[{row};{pad}H{color}{text}")',
+        '',
+        'for frame in frames:',
+        '    for r in range(start_row, start_row + total_lines):',
+        '        w(f"\\033[{r};1H{BG}{chr(32) * cols}")',
+        '    draw_center(start_row, f"🐱 *{moment}*", FG + BOLD)',
+        '    for j, line in enumerate(frame):',
+        '        draw_center(start_row + 2 + j, line, CAT)',
+        '    time.sleep(0.5)',
+        '',
+        'hint_row = start_row + frame_height + 2',
+        'draw_center(hint_row, "press any key ~", HINT_C + DIM)',
+        '',
+        'fd = sys.stdin.fileno()',
+        'old = termios.tcgetattr(fd)',
+        'try:',
+        '    tty.setraw(fd)',
+        '    os.read(fd, 1)',
+        'finally:',
+        '    termios.tcsetattr(fd, termios.TCSADRAIN, old)',
+        '',
+        'last_frame = frames[-1]',
+        'for opacity in [100, 60, 30, 10]:',
+        '    r_val = 255 * opacity // 100',
+        '    g_val = 180 * opacity // 100',
+        '    b_val = 80 * opacity // 100',
+        '    c = f"\\033[38;2;{r_val};{g_val};{b_val}m"',
+        '    for r in range(1, rows + 1):',
+        '        w(f"\\033[{r};1H{BG}{chr(32) * cols}")',
+        '    draw_center(start_row, f"🐱 *{moment}*", FG + BOLD)',
+        '    for j, line in enumerate(last_frame):',
+        '        draw_center(start_row + 2 + j, line, c)',
+        '    time.sleep(0.12)',
+        '',
+        'w("\\033[?1049l\\033[?25h")',
+    ]
 
     script_fd, script_path = tempfile.mkstemp(suffix=".py", prefix="kitty_anim_")
     with os.fdopen(script_fd, "w") as f:
-        f.write(script_code)
+        f.write("\n".join(script_lines) + "\n")
 
     try:
-        # 用 osascript 打开 Terminal.app 新窗口运行
         apple_script = f'''
         tell application "Terminal"
             activate
-            set w to do script "python3 {script_path}; rm -f {script_path}; exit"
+            set w to do script "python3 {script_path}; rm -f {script_path}"
             set custom title of w to "🐱 Terminal Kitty"
-            set number of columns of w to 50
-            set number of rows of w to 12
+            set number of columns of w to 46
+            set number of rows of w to 14
+            set background color of w to {{12160, 12160, 20608}}
+            set normal text color of w to {{65535, 51400, 25600}}
+            set cursor color of w to {{65535, 51400, 25600}}
         end tell
         '''
         subprocess.run(["osascript", "-e", apple_script],
