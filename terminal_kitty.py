@@ -29,7 +29,9 @@ DEFAULT_CONFIG = {
     },
     "cooldown": 5,       # 休息确认后冷却时间（分钟）
     "check_interval": 30, # 活动检测间隔（秒）
-    "idle_timeout": 120   # 超过此秒数无活动则暂停计时（秒）
+    "idle_timeout": 120,  # 超过此秒数无活动则暂停计时（秒）
+    "mood_interval_min": 10,  # 随机卖萌最小间隔（分钟）
+    "mood_interval_max": 25   # 随机卖萌最大间隔（分钟）
 }
 
 CONFIG_DIR = Path.home() / ".terminal-kitty"
@@ -184,6 +186,96 @@ CAT_COOLDOWN = """
 
 
 # ──────────────────────────────────────────────
+# 猫咪随机行为（卖萌用）
+# ──────────────────────────────────────────────
+
+import random
+
+CAT_MOODS = [
+    # 伸懒腰
+    """
+🐱 *伸了一个大大的懒腰*
+       /\\_/\\
+      ( -.- )  ⟋
+       > ^ <  /
+      /|   |\\
+     (_|   |_)
+""",
+    # 舔毛
+    """
+🐱 *舔舔爪子，梳理毛发*
+       /\\_/\\
+      ( ·.· )~~🐾
+       > ω <
+""",
+    # 追尾巴
+    """
+🐱 *追着自己的尾巴转圈*
+        /\\_/\\
+       ( o.o )~~~
+        > ^ <  ~🌀
+""",
+    # 打盹
+    """
+🐱 *打了个小盹*
+       /\\_/\\
+      ( -.- )💤
+       > ^ <  zzz
+""",
+    # 蹭蹭
+    """
+🐱 *蹭了蹭你的手*
+       /\\_/\\
+      ( ^.^ )~~♡
+       > ω <
+""",
+    # 玩纸团
+    """
+🐱 *扑向一个纸团！*
+       /\\_/\\
+      ( o.o )→ 📄
+       > ^ <  gotcha!
+""",
+    # 露肚皮
+    """
+🐱 *翻了个身，露出肚皮*
+        /\\   /\\
+       ( o.o )
+        > ^ <
+       /     \\
+      (  ⊙ ⊙  )  摸摸？
+""",
+    # 窗边发呆
+    """
+🐱 *蹲在窗边看着外面的鸟*
+       /\\_/\\
+      ( o.o )→ 🐦
+       > ^ <  ...
+""",
+    # 踩奶
+    """
+🐱 *在你键盘旁边踩奶*
+       /\\_/\\
+      ( ^.^ )♪
+       > ω <  knead knead
+""",
+    # 突然警觉
+    """
+🐱 *突然竖起耳朵！*
+       /|_/|
+      ( o.o )
+       > ^ <  ？？？
+       什么声音！
+""",
+]
+
+
+def get_random_mood():
+    """随机选一个猫咪行为"""
+    return random.choice(CAT_MOODS)
+
+
+# ──────────────────────────────────────────────
 # 提醒输出（不干扰用户正常终端）
 # ──────────────────────────────────────────────
 
@@ -285,6 +377,8 @@ def run_daemon(config):
     check_interval = config["check_interval"]
     cooldown_minutes = config["cooldown"]
     idle_timeout = config.get("idle_timeout", 120)
+    mood_interval_min = config.get("mood_interval_min", 10) * 60  # 转为秒
+    mood_interval_max = config.get("mood_interval_max", 25) * 60
 
     # 加载上次状态（支持冷却跨重启）
     state = load_state()
@@ -293,6 +387,9 @@ def run_daemon(config):
     in_cooldown = state.get("in_cooldown", False)
     cooldown_until = state.get("cooldown_until", 0)
     last_seen_activity = get_last_activity_time()
+
+    # 随机卖萌计时器
+    next_mood_time = time.time() + random.randint(int(mood_interval_min), int(mood_interval_max))
 
     try:
         while True:
@@ -349,6 +446,11 @@ def run_daemon(config):
                     # 等下一次 hook 触发时显示，然后自动进入冷却
                     in_cooldown = True
                     cooldown_until = time.time() + (cooldown_minutes * 60)
+
+            # 随机卖萌（仅在工作中且无提醒时触发）
+            if current_tier == 0 and time.time() >= next_mood_time:
+                write_reminder(get_random_mood())
+                next_mood_time = time.time() + random.randint(int(mood_interval_min), int(mood_interval_max))
 
             # 持久化状态
             save_state({
