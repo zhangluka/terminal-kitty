@@ -83,13 +83,14 @@ add_hook('UserPromptSubmit', {
     }]
 }, 'terminal_kitty_ping')
 
-# Stop: Claude 回复结束时记录活动
+# Stop: Claude 回复结束时显示提醒
 add_hook('Stop', {
     'hooks': [{
         'type': 'command',
-        'command': f'python3 {install_dir}/terminal_kitty.py --ping'
+        'command': f'python3 {install_dir}/terminal_kitty.py --check-reminder',
+        'timeout': 15
     }]
-}, 'terminal_kitty_ping')
+}, 'terminal_kitty_reminder')
 
 # SessionEnd: 停止守护进程
 add_hook('SessionEnd', {

@@ -52,7 +52,7 @@ def add(ev,data,key='terminal_kitty'):
     if key not in str(ls): ls.append(data)
 add('SessionStart',{'matcher':'startup','hooks':[{'type':'command','command':'python '+d+'\\terminal_kitty.py --daemon','async':True,'timeout':86400}]})
 add('UserPromptSubmit',{'hooks':[{'type':'command','command':'python '+d+'\\terminal_kitty.py --ping'}]},'terminal_kitty_ping')
-add('Stop',{'hooks':[{'type':'command','command':'python '+d+'\\terminal_kitty.py --ping'}]},'terminal_kitty_ping')
+add('Stop',{'hooks':[{'type':'command','command':'python '+d+'\\terminal_kitty.py --check-reminder','timeout':15}]},'terminal_kitty_reminder')
 add('SessionEnd',{'hooks':[{'type':'command','command':'taskkill /F /FI \"WINDOWTITLE eq terminal_kitty*\" 2>nul'}]})
 with open(sf,'w') as f: json.dump(s,f,indent=2)
 print('   ✅ Claude Code hooks 已配置')
